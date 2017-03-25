@@ -1,0 +1,1704 @@
+import random as rnd
+import os
+import matplotlib.pyplot as plt
+import numpy as np
+import time
+
+
+
+def save(name='', fmt='png'):
+    pwd = os.getcwd()
+    os.chdir('./pictures/%s' % fmt)
+    plt.savefig('%s.%s' % (name, fmt), fmt='png')
+    os.chdir(pwd)
+# заполняем карту
+A = []
+k = 11
+p = 110
+for r in range(10):
+    A.append([])
+    for c in range(10):
+        A[r].append(k)
+        k += 1
+for r in range(10):
+    A[r][9] = p
+    p += 100
+
+for r in A:
+    print(r)
+
+print()
+
+# описываем возможности
+perm = 'rldu'
+B = []
+for r in range(10):
+    B.append([])
+    for c in range(10):
+        B[r].append(perm)
+
+# Ограничения
+
+for r in range(10):
+    B[r][0] = B[r][0].replace('l', '_')
+
+for r in range(10):
+    B[0][r] = B[0][r].replace('u', '_')
+
+for r in range(10):
+    B[r][9] = B[r][9].replace('r', '_')
+
+for r in range(10):
+    B[9][r] = B[9][r].replace('d', '_')
+
+for r in B:
+    print(r)
+
+print()
+
+
+# Описываем движение
+
+# x-вертикально у-горизонтально
+def get_coordX(x):
+    if x >= 110:
+        b = (x // 100) - 1
+        return b
+    a = (x // 10) - 1
+    return a
+
+
+def get_coordY(y):
+    if y >= 110:
+        return 9
+    a = (y % 10) - 1
+    return a
+
+
+def make_pair(x, y):
+    return lambda n: x if n == 0 else y
+
+
+def X(p):
+    return p(0)
+
+
+def Y(p):
+    return p(1)
+
+
+# 1
+def move_right(x):
+    if x % 10 == 9:
+        a = (x // 10) * 100 + 10
+        return a
+    return x + 1
+
+
+# 2
+def move_left(x):
+    if x // 10 >= 11:
+        a = (x // 100) * 10 + 9
+        return a
+    return x - 1
+
+
+# 3
+def move_down(x):
+    if x // 10 >= 11:
+        a = x + 100
+        return a
+    return x + 10
+
+
+# 4
+def move_up(x):
+    if x // 10 >= 11:
+        a = x - 100
+        return a
+    return x - 10
+
+
+def initial():
+    x = int(input("input initial stance "))
+    p = make_pair(get_coordX(x), get_coordY(x))
+    return p
+
+
+# init(0) - coord x, init(1) - coord y
+
+
+
+def motivation():
+    x = int(input("input goal stance "))
+    p = make_pair(get_coordX(x), get_coordY(x))
+    return p
+
+
+# init(0) - coord x, init(1) - coord y
+
+def current_coords(x):
+    p = make_pair(get_coordX(x), get_coordY(x))
+    # u = X(p)
+    return p
+
+
+def get_stance(x, y):
+    if y == 9:
+        b = (x + 1) * 100 + 10
+        return b
+    a = (x + 1) * 10 + (y + 1)
+    return a
+
+
+
+
+class Secondary:
+    def __init__(self, ex_stance, new_stance, choice):
+        self.ex_stance = ex_stance
+        self.new_stance = new_stance
+        self.f = 0
+        self.t = 1
+        self.how = choice
+        self.name = ('I know FS ' + str(ex_stance) + ' to ' + str(new_stance))
+
+    def sure(self):
+        a = self.t / (self.t + self.f)
+        return a
+
+    def get_fs(self):
+        a = {self.ex_stance, self.new_stance, self.how}
+        return a
+
+    def __str__(self):
+        x = (self.ex_stance, self.new_stance, self.how)
+        return x
+
+
+net = [Secondary(0, 0, 0)]  # наша сеть
+C = []  # словарь неповторений
+TrueNet = []
+Edges = []
+CurrEdges = []
+# добавляем наши ребра
+
+class Edge:# класс ребер
+    def __init__(self,fr,to,direction):
+        self.fr = fr
+        self.to = to
+        self.dir = direction
+        self.name = ('from ' + str(fr) +' to ' + str(to))
+
+    def delete_edge(self,W):
+        a = current_coords(self.fr)
+        b = current_coords(self.to)
+        if self.dir == "hor":
+            W[a(0)][a(1)] = W[a(0)][a(1)].replace('r', '_')
+            W[b(0)][b(1)] = W[b(0)][b(1)].replace('l', '_')
+        if self.dir == "ver":
+            W[a(0)][a(1)] = W[a(0)][a(1)].replace('d', '_')
+            W[b(0)][b(1)] = W[b(0)][b(1)].replace('u', '_')
+        for r in range(len(CurrEdges)):
+            if CurrEdges[r].fr == self.fr and CurrEdges[r].to == self.to:
+                CurrEdges.remove(CurrEdges[r])
+                break
+        return
+
+for r in range(10):
+    q = r
+    for i in range(9):
+        a = A[q][i]
+        b = A[q][i+1]
+        c = 'hor'
+        x = Edge(a,b,c)
+        Edges.append(x)
+        CurrEdges.append(x)
+        y = Secondary(a,b,1)
+        TrueNet.append(y)
+        C.append(y.name)
+        z = Secondary(b,a,2)
+        TrueNet.append(z)
+        C.append(z.name)
+        #print(x.name)
+
+for r in range(9):
+    q = r
+    for i in range(10):
+        a = A[q][i]
+        b = A[q+1][i]
+        c = 'ver'
+        x = Edge(a, b, c)
+        Edges.append(x)
+        CurrEdges.append(x)
+        y = Secondary(a, b, 3)
+        TrueNet.append(y)
+        C.append(y.name)
+        z = Secondary(b, a, 4)
+        TrueNet.append(z)
+        C.append(z.name)
+        #print(x.name)
+
+
+#print(C)
+
+init = initial()
+print(init(0))
+print(init(1))
+
+# motiv = motivation()
+# print(motiv(0))
+# print(motiv(1))
+
+print()
+
+# test = current_coords(1010)
+#
+# test1 = get_stance(test(0), test(1))
+#
+# print(test1)
+# print()
+# print(test(0))
+# print(test(1))
+
+Learning = (input("CHOOSE LEARNING TYPE: none (for no learning) / tar (for some amount of targets) / net (for some net size) / act"))
+time1 = time.time()
+if Learning == 'tar':
+    some = int(input("HOW MANY TARGETS?"))
+elif Learning == 'net':
+    some = int(input("WHAT NET LENGTH [1-361]?"))
+# Эксперимент
+pointer = get_stance(init(0), init(1))
+i = 1
+h = 1
+s = 1
+Tests = 0
+nmotivX = rnd.choice(A)
+nmotivS = rnd.choice(nmotivX)
+motiv = current_coords(nmotivS)
+while True:  # Первый раз
+
+    # pointer - stance, Coords - coords
+    Coords = current_coords(pointer)
+    if get_stance(Coords(0), Coords(1)) == get_stance(motiv(0), motiv(1)):
+        print("GOAL ",pointer," REACHED!!!")
+        print(h)
+        pointer = get_stance(motiv(0), motiv(1))
+        Tests += 1
+        nmotivX = rnd.choice(A)
+        nmotivS = rnd.choice(nmotivX)
+        motiv = current_coords(nmotivS)
+    if Learning == 'none':
+        break
+    elif Learning == 'net':
+        if len(net) >= some:
+            break
+    elif Learning == 'tar':
+        if h >= some:
+            break
+    elif Learning == 'act':
+        if h > 3000:
+            time2 = time.time()
+            print('MY TIME IS', float((time2 - time1)/60))
+            break
+    n = rnd.randint(1, 4)
+
+    if n == 1 and "r" in B[Coords(0)][Coords(1)]:
+        ex = pointer
+        #print(B[Coords(0)][Coords(1)])
+        pointer = move_right(pointer)
+        #print("turned RIGHT")
+        #print(pointer)
+        t = current_coords(pointer)
+        #print("current coords", t(0), t(1))
+        x = Secondary(ex, pointer, 1)
+        #print(x.name)
+        #print(x.how)
+        y = Secondary(pointer, ex, 2)
+        #print(y.name)
+        if C.count(x.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(ex, pointer, 1))  # туда
+            C.remove(x.name) # НОВОЕ ОСТОРОЖНО
+        if C.count(y.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(pointer, ex, 2))  # обратно
+            C.remove(y.name) # НОВОЕ ОСТОРОЖНО
+        #print("----------")
+    elif n == 2 and "l" in B[Coords(0)][Coords(1)]:
+        ex = pointer
+        #print(B[Coords(0)][Coords(1)])
+        pointer = move_left(pointer)
+        #print("turned LEFT")
+        #print(pointer)
+        t = current_coords(pointer)
+        #print("current coords", t(0), t(1))
+        x = Secondary(ex, pointer, 2)
+        #print(x.name)
+        # print(x.how)
+        y = Secondary(pointer, ex, 1)
+        #print(y.name)
+        #print(C)
+        if C.count(x.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(ex, pointer, 2))
+            C.remove(x.name) # НОВОЕ ОСТОРОЖНО
+        if C.count(y.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(pointer, ex, 1))
+            C.remove(y.name) # НОВОЕ ОСТОРОЖНО
+        #print("----------")
+    elif n == 3 and "d" in B[Coords(0)][Coords(1)]:
+        ex = pointer
+        #print(B[Coords(0)][Coords(1)])
+        pointer = move_down(pointer)
+        #print("turned DOWN")
+        #print(pointer)
+        t = current_coords(pointer)
+        #print("current coords", t(0), t(1))
+        x = Secondary(ex, pointer, 3)
+        #print(x.name)
+        # print(x.how)
+        y = Secondary(pointer, ex, 4)
+        #print(y.name)
+        if C.count(x.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(ex, pointer, 3))
+            C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+        if C.count(y.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(pointer, ex, 4))
+            C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+        #print("----------")
+    elif n == 4 and "u" in B[Coords(0)][Coords(1)]:
+        ex = pointer
+        #print(B[Coords(0)][Coords(1)])
+        pointer = move_up(pointer)
+        #print("turned UP")
+        #print(pointer)
+        t = current_coords(pointer)
+        #print("current coords", t(0), t(1))
+        x = Secondary(ex, pointer, 4)
+        #print(x.name)
+        # print(x.how)
+        y = Secondary(pointer, ex, 3)
+        #print(y.name)
+        if C.count(x.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(ex, pointer, 4))
+            C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+        if C.count(y.name) == 1:
+            #print(C)
+            #print(len(C))
+            net.append(Secondary(pointer, ex, 3))
+            C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+        #print("----------")
+    h += 1
+
+g = len(net)
+print()
+#for i in range(g):
+    #print(net[i].name)
+#print(h)
+print()
+
+
+def search(x, y, z, wrong):
+    path = []
+    path1 = []
+    visited = []
+    visited1 = []
+    chances = []
+    chances1 = []
+    tnet = net[:]
+    for r in range(len(net)):
+        for i in range(len(wrong)):
+            if net[r].name == wrong[i].name:
+                for t in range(len(tnet)):
+                    if tnet[t].name == net[r].name:
+                        #print ("REMOVED ", tnet[t].name)
+                        tnet.remove(tnet[t])
+                        tnet.append(Secondary(0,0,0))
+    # print("THIS IS NET LEN", len(net))
+    # print("THIS IS NEW NET LEN", len(tnet))
+
+    if x == y:
+        path.append(x)
+        return path
+    look = y
+    pointer = x
+    path.append(pointer)
+    visited.append(pointer)
+    while pointer != look:
+        n = []
+        tn = []
+        sure = []
+        tsure = []
+        #for i in range(z):
+        for i in range(len(tnet)):
+            #print("YAPPI")
+            if tnet[i].new_stance == pointer:
+                n.append(tnet[i].ex_stance)
+                a = tnet[i].sure()
+                sure.append(a)
+                # len n = len sure
+        k = len(n)
+        for i in range(k):
+            if visited.count(n[i]) == 0:
+                tn.append(n[i])
+                tsure.append(sure[i])
+        p = len(tn)
+        #print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", n, 'POP', tn, 'POP', sure, 'POP', tsure,
+             # 'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
+        #print("BY SO FAR", path)
+        #print("WAS TO", visited)
+        if p == 0:
+            if len(path) == 0:
+                #print("OOOOOOOOOOOOOOOOOOO MYYYYYY GOOOOOOOOOOOOOOOOOD")
+                pointer = y
+                break
+            elif len(path) == 1:
+                path.pop()
+                return path
+            else:
+                path.pop()
+                u = len(path)
+                #print("HAHAHAHAHAHA U LEN IS NOW ", u)
+                if len(path) == 0:
+                    pointer = x
+                else:
+                    pointer = path[u - 1]
+                    visited.append(path[u - 1])
+        else:
+
+            isure = choice_var(tsure) # БЫЛО ТАК
+            pick = choice_coor(isure,tn,look,pointer)#БЫЛО ТАК
+            #print(pick)
+            if len(pick) == 0: # БЫЛО ТАК
+                tpick = rnd.choice(isure)# БЫЛО ТАК
+            else:# БЫЛО ТАК
+                tpick = rnd.choice(pick)# БЫЛО ТАК
+
+            r = tn[tpick]
+            path.append(r)
+            chances.append(tsure[tpick])
+            u = len(path)
+            #print("HEHEHEHEHE U LEN IS ", u)
+            if len(path) == 0:
+                pointer = x
+            else:
+                pointer = path[u - 1]
+                visited.append(path[u - 1])
+            #print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", isure, 'PEEEEP', pick, 'PEEEP', tn[pick], 'PEEEEP',
+                  #'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
+    path.reverse()
+    print("REVERSE PATH IS")
+    print(path)
+
+    look = x
+    pointer = y
+    path1.append(pointer)
+    visited1.append(pointer)
+    while pointer != look:
+        n = []
+        tn = []
+        sure = []
+        tsure = []
+        # for i in range(z):
+        for i in range(len(tnet)):
+            # print("YAPPI")
+            if tnet[i].ex_stance == pointer:
+                n.append(tnet[i].new_stance)
+                a = tnet[i].sure()
+                sure.append(a)
+                # len n = len sure
+        k = len(n)
+        for i in range(k):
+            if visited1.count(n[i]) == 0:
+                tn.append(n[i])
+                tsure.append(sure[i])
+        p = len(tn)
+        # print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", n, 'POP', tn, 'POP', sure, 'POP', tsure,
+        # 'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
+        # print("BY SO FAR", path)
+        # print("WAS TO", visited)
+        if p == 0:
+            if len(path1) == 0:
+                # print("OOOOOOOOOOOOOOOOOOO MYYYYYY GOOOOOOOOOOOOOOOOOD")
+                pointer = y
+                break
+            elif len(path1) == 1:
+                path1.pop()
+                return path
+            else:
+                path1.pop()
+                u = len(path1)
+                # print("HAHAHAHAHAHA U LEN IS NOW ", u)
+                if len(path1) == 0:
+                    pointer = y
+                else:
+                    pointer = path1[u - 1]
+                    visited1.append(path1[u - 1])
+        else:
+
+            isure = choice_var(tsure)  # БЫЛО ТАК
+            pick = choice_coor(isure, tn, look, pointer)  # БЫЛО ТАК
+            # print(pick)
+            if len(pick) == 0:  # БЫЛО ТАК
+                tpick = rnd.choice(isure)  # БЫЛО ТАК
+            else:  # БЫЛО ТАК
+                tpick = rnd.choice(pick)  # БЫЛО ТАК
+
+            r = tn[tpick]
+            path1.append(r)
+            chances1.append(tsure[tpick])
+            u = len(path1)
+            # print("HEHEHEHEHE U LEN IS ", u)
+            if len(path1) == 0:
+                pointer = y
+            else:
+                pointer = path1[u - 1]
+                visited1.append(path1[u - 1])
+                # print("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", isure, 'PEEEEP', pick, 'PEEEP', tn[pick], 'PEEEEP',
+                # 'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
+    print("FORWARD PATH IS")
+    print(path1)
+    sum = 1
+    sum1 = 1
+    for r in range(len(chances)):
+        sum = sum*chances[r]
+    print("CHANCE OF REV PATH IS ", sum)
+    for r in range(len(chances1)):
+        sum1 = sum1*chances1[r]
+    print("CHANCE OF FWD PATH IS ", sum1)
+    if sum ==sum1:
+        a = rnd.randint(1,2)
+        if a == 1:
+            print("CHOOSED REV")
+            return path
+        if a == 2:
+            print("CHOOSED FWD")
+            return path1
+    elif sum > sum1:
+        print("CHOOSED REV")
+        return path
+    elif sum1 > sum:
+        print("CHOOSED FWD")
+        return path1
+    #return path
+
+def choice_coor(isure,tn,goal,now_at):
+    good = []
+    a = current_coords(goal)
+    p = current_coords(now_at)
+    for r in range(len(isure)):
+        q = isure[r]
+        b = current_coords(tn[q])
+        if (abs(a(0) - b(0)) + abs(a(1) - b(1))) < (abs(a(0) - p(0)) + abs(a(1) - p(1))):
+            good.append(isure[r])
+    return good
+
+def choice_var(x):
+    k = len(x)
+    i = []
+    sure = 0
+    for r in range(k):
+        if x[r] >= sure:  # sure: # степень доверия
+            sure = x[r]
+    for r in range(k):
+        if x[r] == sure:
+            i.append(r)
+            # i = r
+    return i
+
+
+def count_hops(x, y):
+    path = []
+    visited = []
+    chances = []
+
+    if x == y:
+        path.append(x)
+        return len(path)
+
+    look = x
+    pointer = y
+    path.append(pointer)
+    visited.append(pointer)
+
+    while pointer != look:
+        n = []
+        tn = []
+        sure = []
+        tsure = []
+        for i in range(len(TrueNet)):
+            if TrueNet[i].new_stance == pointer:
+                n.append(TrueNet[i].ex_stance)
+                a = TrueNet[i].sure()
+                sure.append(a)
+
+        k = len(n)
+        for i in range(k):
+            if visited.count(n[i]) == 0:
+                tn.append(n[i])
+                tsure.append(sure[i])
+
+        p = len(tn)
+        if p == 0:
+            if len(path) == 0:
+                break
+            elif len(path) == 1:
+                path.pop()
+                return len(path)
+            else:
+                path.pop()
+                u = len(path)
+                if len(path) == 0:
+                    pointer = x
+                else:
+                    pointer = path[u - 1]
+                    visited.append(path[u - 1])
+        else:
+            isure = choice_var(tsure)
+            pick = choice_coor(isure,tn,look,pointer)
+
+            if len(pick) == 0:
+                tpick = rnd.choice(isure)
+            else:
+                tpick = rnd.choice(pick)
+
+            r = tn[tpick]
+            path.append(r)
+            chances.append(tsure[tpick])
+            u = len(path)
+
+            if len(path) == 0:
+                pointer = x
+            else:
+                pointer = path[u - 1]
+                visited.append(path[u - 1])
+
+    path.reverse()
+    print("PATH IS")
+    print(path)
+    return len(path)
+
+# print("----------------------------------------------------------")
+# x = count_hops(11,1010)
+# print(x)
+# x = count_hops(11,12)
+# print(x)
+# x = count_hops(11,1010)
+# print(x)
+# x = count_hops(12,44)
+# print(x)
+# x = count_hops(11,1010)
+# print(x)
+# x = count_hops(11,38)
+# print(x)
+# x = count_hops(11,1010)
+# print(x)
+# x = count_hops(11,109)
+# print(x)
+# x = count_hops(11,1010)
+# print(x)
+# x = count_hops(101,84)
+# print(x)
+# x = count_hops(11,1010)
+# print(x)
+# x = count_hops(64,71)
+# print(x)
+# print("----------------------------------------------------------")
+
+Step = 1
+demotiv = 0
+allsteps = 0
+w_changed = 0
+def go_path(x, y, z, B, ST, S, allsteps):
+    demotiv1 = demotiv
+    if demotiv > 200:
+        demotiv1 = 1
+    als = allsteps
+    print("THIS IS ALLSTEPS", als)
+    WORLD = B
+    wentpath = []
+    pointer = []
+    c = 0
+    if len(x) == 1:
+        pointer.append(x[0])
+        pointer.append(Secondary(0,0,0))
+        pointer.append(c)
+        pointer.append(als)
+        return pointer
+    fs = 0
+    a = 0
+    i = 0
+    j = 1
+    goal = y
+    ln = z
+    #pointer = x[0]
+    pointer.append(x[0])
+    #ipointer = x[0]
+    fr = x[0]
+    to = x[1]
+    while pointer[0] != goal:
+        als += 1
+        if ST == 'a':
+            if als % S == 0:
+                CurrEdges = Edges[:]
+                WORLD = change_world()
+
+        Coords = current_coords(pointer[0])
+        for r in range(ln):
+            if net[r-1].ex_stance == fr and net[r-1].new_stance == to:
+                a = net[r-1].how
+                fs = r - 1
+        if a == 1 and "r" in WORLD[Coords(0)][Coords(1)]:
+            i += 1
+            j += 1
+            pointer[0] = move_right(pointer[0])
+            # print("hi 1")
+
+        elif a == 2 and "l" in WORLD[Coords(0)][Coords(1)]:
+            i += 1
+            j += 1
+            pointer[0] = move_left(pointer[0])
+            # print("hi 2")
+
+        elif a == 3 and "d" in WORLD[Coords(0)][Coords(1)]:
+            i += 1
+            j += 1
+            pointer[0] = move_down(pointer[0])
+            # print("hi 3")
+
+        elif a == 4 and "u" in WORLD[Coords(0)][Coords(1)]:
+            i += 1
+            j += 1
+            pointer[0] = move_up(pointer[0])
+            # print("hi 4")
+
+        else:
+            wentpath.append(net[fs])
+            #net[fs].f = net[fs].f + 1*demotiv
+            #for r in range(len(net)):
+                #if net[r].new_stance == net[fs].ex_stance:
+                   # net[r].f = net[r].f + 1*demotiv
+                    #print("MINUSED", net[r].name, 'FOR', 1 * demotiv, 'ON STEP ', Step)
+            # НОВОЕ ОСТОРОЖНО
+            for r in range(len(wentpath)):
+                wentpath[r].f = wentpath[r].f + 1*demotiv1
+                print("MINUSED", wentpath[r].name,'FOR', 1*demotiv1, 'ON STEP ', Step - 1)
+            wrong = net[fs]
+            pointer.append(wrong)
+            pointer.append(c)
+            pointer.append(als)
+            print(i)
+            print()
+            #print(pointer)
+            return pointer
+        net[fs].t = net[fs].t + 1
+        wentpath.append(net[fs])
+        # НОВОЕ ОСТОРОЖНО
+        #if net[fs].f > 1:
+            #net[fs].f -= 0.9
+        # НОВОЕ ОСТОРОЖНО
+        # pointer = x[i]
+        c += 1
+        if pointer[0] == goal:
+            print("len is", i)
+            pointer.append(Secondary(0,0,0))
+            pointer.append(c)
+            pointer.append(als)
+            for r in range(len(wentpath)):
+                wentpath[r].t = wentpath[r].t + 1*Step
+                print("AWARDED", wentpath[r].name, 'FOR', 1 * Step, 'ON STEP ', Step - 1)
+            return pointer
+        fr = x[i]
+        to = x[j]
+
+    return pointer
+
+
+void = '____'
+N = []  # Новый мир Nightmare
+for r in range(10):
+    N.append([])
+    for z in range(10):
+        N[r].append(void)
+
+unlock = [11, 12, 22, 23, 33, 34, 44, 45, 55, 56, 66, 67, 77, 78, 88, 89, 99, 910, 1010]
+un = len(unlock)
+for r in range(un):
+    a = current_coords(unlock[r])
+    if unlock[r] == 11:
+        N[a(0)][a(1)] = 'r'
+    elif unlock[r] == 1010:
+        N[a(0)][a(1)] = 'u'
+    elif unlock[r] % 11 == 0:
+        N[a(0)][a(1)] = 'ru'
+    else:
+        N[a(0)][a(1)] = 'ld'
+
+W = []  # Новый мир Wall
+for r in range(10):
+    W.append([])
+    for zr in range(10):
+        W[r].append(perm)
+for r in range(10):
+    W[r][0] = W[r][0].replace('l', '_')
+
+for r in range(10):
+    W[0][r] = W[0][r].replace('u', '_')
+
+for r in range(10):
+    W[r][9] = W[r][9].replace('r', '_')
+
+for r in range(10):
+    W[9][r] = W[9][r].replace('d', '_')
+for r in range(9):
+    W[r][9] = W[r][9].replace('l', '_')
+    W[r][7] = W[r][7].replace('r', '_')
+    W[r][8] = void
+W[9][8] = W[9][8].replace('u', '_')
+#for r in W:
+    #print(r)
+
+def move_n(x, y):
+    if x == 1:
+        a = move_left(y)
+    elif x == 2:
+        a = move_right(y)
+    elif x == 3:
+        a = move_down(y)
+    elif x == 4:
+        a = move_up(y)
+    return a
+
+def choose_mot(x):
+    if x % 2 == 0:
+        a = 11
+    else:
+        a = 55
+    return a
+
+Tests = 0
+#Step = 0
+Success = 0
+#Генерация случайного мира. 25% ребер доступно, остальные - по равномерному распределению
+
+# for r in B:
+#     print(r)
+
+
+Seed = input("DO YOU WANT TO USE A SEED?")
+if Seed == 'y':
+    SeedN = int(input("WHICH ONE?"))
+    if SeedN == 1:
+        FalseEdges1 = [35, 68, 66, 95, 72, 88, 57, 2, 71, 131, 21, 18, 118, 22, 148, 19, 106, 171, 102, 40, 93, 174, 44, 104, 12, 5, 24, 166, 49, 16, 32, 101, 1, 162, 81, 143, 15, 14, 139, 29, 109, 110, 80, 41, 92, 152, 61, 74, 100, 58, 94, 76, 56, 153, 36, 132, 133, 30, 163, 9, 173, 4, 107, 84, 159, 147, 157, 75, 69, 8, 144, 155, 164, 129, 45, 55, 172, 108, 179, 77, 47, 168, 42, 27, 145, 87, 31, 0, 111, 150, 134, 51, 170, 6, 79, 137, 60, 124, 73, 23, 160, 43, 52, 175, 3, 158, 99, 25, 138, 13, 122, 146, 50, 125, 154, 96, 121, 127, 167, 91, 37, 39, 126, 64, 17, 7, 33, 117, 85, 114, 135, 26, 103, 59, 89]
+        FalseEdges = []
+        for r in range(len(Edges)):
+            for i in FalseEdges1:
+                if r == i:
+                    FalseEdges.append(Edges[r])
+                    break
+        LEN = len(FalseEdges)
+        Un = [114.60363156892738, 50.036191388100505, 128.63089954366615, 114.62949535437207, 133.63624016283916, 42.654585951468995, 68.639372374251124, 127.72613757024203, 52.578429135087632, 109.01434865910468, 63.519674004702182, 51.154699972257689, 64.728587811183303, 51.756865276497138, 133.19513278069348, 68.365426113755078, 83.033051178889295, 61.946080510156136, 13.56286485377635, 102.14706886715103, 109.71232496983032, 105.73063283918701, 36.286976531545676, 133.11081868292112, 108.67202970916814, 112.44030473513629, 110.12864921003025, 98.209865632638, 126.03517371271228, 116.98149794297605, 86.243423144390093, 128.82579228633034, 40.406099390060483, 46.990388713607963, 74.581386769544409, 47.748968696775755, 64.521928588154196, 23.986600750200004, 130.41799038515362, 89.274951640272221, 12.477815463668385, 75.981806906166284, 16.586286867061748, 15.010650999415493, 134.18540393784906, 38.440972827115147, 119.42748810367551, 42.478367911073207, 28.905429125806933, 5.094429486645363, 4.9415591260495093, 19.978682086914581, 9.6529457054685732, 64.008392730281173, 48.532057822234954, 116.82236392496996, 97.719799741775176, 26.695875319164564, 20.628728143753975, 90.107777365317858, 32.370119399107864, 123.06096808785965, 20.449805363200408, 34.585803631504547, 71.831819915922139, 13.639193684348321, 95.642833496403938, 59.910904826188528, 101.07140749815909, 45.174321597492039, 120.96666930265654, 80.807660819358176, 111.26257133283276, 128.86358168678157, 59.327908409089979, 69.389526006883216, 3.7492438703147202, 11.475362103521926, 119.04259137792606, 109.41053199057066, 84.501996157793428, 85.773851179910579, 87.286225903026988, 77.347889456304429, 111.45887545509738, 31.223868370890038, 60.289399820651077, 51.762057979546412, 107.9543896796249, 37.571035213439416, 3.153999005224378, 107.65990420749434, 108.71361491619309, 128.029562987633, 27.898626905612566, 62.44059897948172, 24.920266131699552, 34.009322887072202, 65.505868907591491, 5.4578467868148559, 85.511812752820873, 61.72896013533984, 13.922974564654409, 33.932694212209768, 33.941215118284354, 60.311572282395829, 56.72422970952433, 125.88500874667898, 131.68474836994002, 42.578951678816814, 16.197961607451653, 90.704904657097842, 35.939188941160111, 99.147456531104311, 104.68438448551288, 80.685418305056714, 43.204827317823913, 73.583117385329643, 72.605418761855887, 17.206766004400929, 97.437167700299071, 42.868021172005129, 75.945498880763054, 91.163157719483948, 110.10434845350532, 75.886105509400764, 38.703578128305054, 23.640795338336783, 115.39435706198665, 119.52168225122598, 124.99213143058837, 32.764546444980638, 97.233575089226676, 46.087391910031265, 85.947275750462737]
+
+    if SeedN == 2:
+        FalseEdges1 = [176, 129, 30, 88, 83, 79, 41, 9, 155, 82, 51, 145, 169, 113, 94, 38, 47, 165, 85, 45, 137, 64, 107, 36, 3, 11, 122, 104, 62, 143, 166, 123, 160, 175, 156, 25, 48, 132, 144, 60, 49, 153, 17, 177, 6, 33, 136, 150, 71, 93, 131, 46, 7, 84, 5, 159, 54, 31, 66, 23, 37, 8, 151, 119, 172, 67, 91, 100, 20, 68, 42, 65, 106, 63, 121, 174, 21, 120, 154, 116, 77, 98, 43, 87, 110, 108, 99, 18, 28, 161, 32, 52, 109, 149, 27, 69, 133, 135, 140, 128, 4, 81, 146, 70, 130, 115, 142, 16, 39, 90, 173, 75, 58, 89, 73, 102, 56, 164, 105, 14, 12, 101, 0, 76, 1, 125, 22, 178, 152, 92, 171, 61, 117, 168, 163]
+        FalseEdges = []
+        for r in range(len(Edges)):
+            for i in FalseEdges1:
+                if r == i:
+                    FalseEdges.append(Edges[r])
+                    break
+        LEN = len(FalseEdges)
+        Un = [36.487368819519041, 110.57213272096402, 44.822461217765202, 122.82206062980833, 16.640198586107843, 34.947376275430692, 39.494476488819338, 46.45583594638466, 123.59322671778084, 96.553191991255957, 93.704842797758289, 34.806562392064443, 45.099693398901245, 66.252468643589822, 46.876297248678988, 63.160052555093586, 4.1004511627417912, 54.243795183942744, 71.72988880226481, 11.436004746258444, 31.558651324001442, 73.529597225041115, 1.9361899943089709, 59.30490266052022, 75.837052301200586, 93.562185814556983, 109.0419104376257, 21.289528483693019, 23.406747321343428, 31.344207055940629, 17.716892119076707, 42.824350356092062, 51.097920845501157, 52.16632666576303, 35.966398213620813, 49.927443599287813, 65.921011294961843, 109.47675542888963, 40.136293531843229, 80.821228994184693, 106.62242583154897, 106.84828722266825, 62.272060971873792, 21.494271357521363, 23.157823184355568, 118.59096109159762, 95.782388785523267, 38.257964943558868, 41.689047795728712, 28.770806540195764, 52.391380523850415, 129.94105331620079, 118.43730894196331, 18.751507798873156, 114.02803186279849, 41.148511496192292, 3.3723811512716235, 5.8115467252660613, 5.0057953033576794, 26.692765607956783, 133.8172823404465, 118.64194575672656, 70.989782326877744, 76.90977723521776, 100.46284074235356, 97.211778653715101, 62.220637179218116, 36.82408085345709, 29.913247686710466, 105.68703254039997, 129.92037926380655, 80.585648606133944, 96.955875634608915, 23.806880004090356, 116.96289691526893, 63.646561572915132, 96.776313696479377, 46.093239319579737, 82.7152921711332, 67.762911226423071, 28.310982164451342, 18.567058555924408, 19.703707928179597, 2.8791623818450338, 104.73613612745362, 76.272406139128762, 63.280235698549951, 18.21959000430202, 122.24883549848751, 72.399362749887544, 74.163589716056435, 96.998992489909739, 70.414185901249112, 72.494875064852664, 60.49112085348704, 129.92732644310749, 19.993152862595107, 38.600786889198091, 97.883696316121657, 111.56453985049855, 14.713360518450823, 100.26370199658345, 120.20674643993776, 38.643414831346853, 88.627262492642799, 93.990142858198496, 50.509658983490873, 16.655804595616726, 88.966821514001737, 37.036523736753892, 41.856397716145537, 12.755110252215223, 85.427537958822811, 90.991516453624072, 106.75558313133099, 119.46964735209359, 95.759693045499077, 58.777869988548851, 130.16142159292542, 77.013162915472066, 82.438115137501242, 94.008848785615925, 38.413248673351973, 22.418178424878452, 15.339094349919362, 14.307684671433654, 16.700803197389291, 13.754568704348706, 106.71578024011875, 80.404657867619306, 90.497717625253316, 81.070219776913305, 69.526369399709466, 112.79307514536116, 35.720792492824934]
+
+    if SeedN == 3:
+        FalseEdges1 = [46, 70, 128, 140, 93, 98, 44, 104, 170, 38, 132, 65, 179, 116, 40, 21, 176, 53, 56, 145, 90, 88, 97, 160, 52, 48, 10, 50, 157, 150, 144, 152, 66, 92, 80, 76, 171, 75, 60, 57, 67, 30, 102, 77, 131, 118, 0, 25, 89, 112, 79, 167, 83, 110, 87, 111, 139, 28, 82, 135, 95, 42, 1, 133, 127, 2, 64, 124, 20, 156, 15, 14, 162, 26, 78, 109, 161, 59, 27, 99, 123, 6, 61, 54, 85, 13, 12, 4, 68, 163, 154, 177, 107, 108, 47, 164, 137, 101, 155, 39, 16, 149, 91, 122, 45, 74, 175, 148, 143, 165, 173, 81, 141, 84, 96, 153, 138, 37, 62, 103, 106, 33, 24, 36, 115, 129, 158, 23, 31, 113, 172, 117, 73, 72, 125]
+        FalseEdges = []
+        for r in range(len(Edges)):
+            for i in FalseEdges1:
+                if r == i:
+                    FalseEdges.append(Edges[r])
+                    break
+        LEN = len(FalseEdges)
+        Un = [33.778530866277144, 87.615421312378572, 16.175131348251, 123.86666982433245, 120.60469565071328, 79.600632782582522, 10.340105879679019, 46.867536656236119, 52.063100522759726, 119.69071095890877, 65.149318203546301, 109.85879758549402, 107.05311510562636, 57.344655555779802, 92.97814653703675, 59.763277875097465, 55.871217596399262, 131.40412388935511, 35.597671936305431, 55.807391615776119, 58.225570344420632, 57.46651825715346, 128.86305976950382, 3.1769742914581021, 65.634295764207678, 101.61492942452591, 22.999690137909059, 1.5770514904298594, 60.998570809840608, 110.44697237933939, 41.320861666124294, 114.97393881801653, 114.72435085533623, 123.45572463074799, 34.358442060786118, 70.160389764266455, 104.23397486961842, 77.95989190941485, 119.57008236310605, 130.15374136707962, 19.060967756166576, 131.84858135430548, 18.076269885672819, 131.34954875810928, 93.76981245988793, 113.26693489354101, 30.933404379439054, 123.466378686148, 43.210497951796462, 33.76922571585299, 115.2279491779975, 82.078316187682134, 19.596986962090938, 1.8787374718146399, 105.08472158383204, 32.106785071029762, 94.304212012759805, 3.1769759634679957, 50.760584849651543, 127.16138056770735, 119.39557038665751, 48.990845317389748, 18.152991409525363, 37.521628014206293, 58.284978676890788, 109.2088460557288, 115.45136062323365, 49.63869570217323, 67.631218703022597, 112.93604849145308, 60.159209092529693, 53.019486933061764, 125.09154161906534, 48.298627875655406, 130.69007741246739, 81.655623341531054, 73.120023735045635, 65.392995593786125, 132.75089174527523, 93.916597714446112, 90.876241115230769, 71.930283978124265, 55.337966195417827, 123.317259426413, 55.316242530180297, 124.36223261473749, 54.27135988934365, 1.4630760383243862, 29.488236057292703, 125.06842605686677, 39.350657232714688, 110.62862455521078, 110.2137627494462, 119.38708722540407, 31.005369990053488, 98.753712961368336, 14.170327722912717, 87.176994129187079, 1.8604249815462166, 50.066147289685595, 4.6137869740221671, 110.26306063469914, 96.572376782897109, 51.107987625811958, 91.286718998056458, 129.57204780696094, 93.202522527337862, 127.12003107964411, 22.030072295254211, 102.5429641209773, 69.981093801678256, 123.47751833376358, 119.94439581066187, 4.9556987727650403, 58.505464479257604, 49.647969043507288, 19.048022974545177, 39.757239879633673, 26.814144709726747, 34.959684705745673, 86.212331554158112, 79.046695246478805, 31.354757099002239, 111.99721666781934, 32.66590191192212, 89.086768270379977, 125.91713695800219, 8.5051231618024143, 42.422701888858469, 28.938504168338522, 132.21695214949395, 130.51435180191379, 122.06012605967045, 29.159941359567938, 32.904791938172821]
+
+    if SeedN == 4:
+        FalseEdges1 = [132, 78, 21, 126, 155, 163, 122, 128, 36, 27, 23, 57, 9, 121, 47, 30, 107, 22, 65, 62, 45, 55, 151, 35, 5, 83, 12, 41, 3, 74, 89, 53, 16, 11, 106, 118, 178, 93, 42, 38, 130, 166, 73, 146, 85, 99, 87, 46, 70, 90, 63, 58, 98, 31, 26, 4, 77, 140, 141, 150, 153, 49, 161, 82, 13, 157, 176, 143, 110, 162, 92, 69, 137, 134, 2, 25, 64, 40, 7, 173, 105, 37, 60, 149, 50, 114, 152, 129, 179, 127, 61, 148, 20, 154, 59, 169, 170, 66, 0, 117, 111, 167, 131, 113, 102, 138, 109, 10, 88, 81, 51, 164, 48, 95, 43, 165, 96, 91, 97, 15, 33, 17, 84, 72, 135, 125, 174, 8, 172, 108, 123, 116, 101, 119, 19]
+        FalseEdges = []
+        for r in range(len(Edges)):
+            for i in FalseEdges1:
+                if r == i:
+                    FalseEdges.append(Edges[r])
+                    break
+        LEN = len(FalseEdges)
+        Un = [127.88221137034364, 10.808427664566576, 29.680910936355751, 122.50120548702876, 8.9908463736872513, 68.730107873601156, 55.200413883726206, 121.78438522431181, 53.504682788539689, 94.967248565158854, 126.03465184189592, 115.86820211259477, 134.60226938589136, 20.538373663452617, 18.570078145093198, 64.639587150885149, 20.325830696566488, 31.705280574824005, 13.215578865145618, 3.8723330622890844, 1.4703450733321382, 115.14115287700818, 131.34783434150361, 58.642399680216144, 122.46799287291553, 20.548478402536134, 110.95258001329286, 81.61381684504326, 62.365872211674549, 37.667488645940203, 56.692698046387584, 128.89290831605655, 116.22015528958386, 67.339368234669038, 92.548117943693697, 93.645407301541439, 21.504490697272963, 93.35014247211906, 113.35757858058118, 16.231159272156798, 65.683007513307544, 25.659844435341125, 105.92469150618102, 69.593628652972157, 55.853569400321511, 83.270359023202246, 32.384511892355121, 67.469221376813664, 118.86361370917228, 61.051543095134086, 73.346441004081669, 105.55921573743424, 106.67073536067601, 12.181747625782391, 90.150165418833893, 19.851127525866584, 107.95182023397082, 100.2925654229193, 6.9056647455898972, 99.92744781258321, 16.762534155526552, 2.7509001861706728, 24.982584529088811, 128.07841074231214, 28.803699891201802, 12.348415714979637, 114.2446505966105, 133.53140708849216, 26.907089687601882, 81.932310665848632, 117.42786197680547, 46.028534445529921, 48.056266558788053, 58.274233199111741, 8.0543376252421588, 28.739120855879996, 59.791935786907516, 82.035377551779291, 12.807246731008352, 45.297241053009124, 107.93099549766623, 30.11098460760175, 77.655224935378513, 99.223837055865062, 82.699390162761887, 111.64967241915369, 84.477527214762574, 88.261039408058764, 102.4941492861347, 17.226344885043261, 57.642162896353433, 58.655798659688706, 87.119600777096878, 125.43116504087133, 55.954352355499324, 43.222518757021632, 67.320075834598072, 55.502672201369386, 98.958539323223846, 7.9122498496927562, 21.822652531896448, 96.620379156758432, 81.389249484801041, 41.864067817964482, 46.248592948308946, 133.73504884309551, 15.528063293177123, 117.34048659412834, 1.1879979223258137, 89.619405106511024, 5.6091853510192511, 89.090902446891889, 28.190603968084186, 124.82833566599206, 118.8070789643162, 24.021779635578536, 25.00283252460045, 125.92001276741516, 70.660380863724725, 84.472421510004637, 86.535482815777769, 40.158687286985618, 29.505204902119083, 106.35455152012992, 7.313078034723655, 32.263711599464052, 13.333809327049575, 9.2521215050357259, 121.42692874895127, 110.82852509224777, 83.457592499273417, 88.396546434329139, 90.599380226443472, 52.071371597853194, 49.077855850315267]
+
+    if SeedN == 5:
+        FalseEdges1 = [147, 32, 114, 111, 113, 4, 112, 93, 100, 135, 138, 20, 82, 158, 142, 38, 107, 126, 52, 43, 136, 132, 161, 123, 131, 168, 121, 89, 51, 174, 35, 176, 77, 12, 98, 64, 130, 172, 34, 59, 145, 70, 91, 42, 11, 169, 134, 83, 162, 99, 167, 8, 2, 1, 155, 150, 28, 101, 60, 36, 55, 139, 19, 47, 48, 16, 14, 69, 146, 95, 71, 17, 96, 165, 108, 24, 73, 9, 120, 86, 53, 109, 149, 18, 85, 80, 25, 151, 166, 37, 62, 5, 119, 31, 41, 72, 22, 164, 173, 160, 141, 65, 163, 148, 13, 170, 76, 90, 152, 179, 27, 88, 57, 66, 58, 40, 140, 67, 29, 94, 45, 128, 117, 30, 171, 122, 125, 104, 0, 115, 75, 124, 39, 118, 137]
+        FalseEdges = []
+        for r in range(len(Edges)):
+            for i in FalseEdges1:
+                if r == i:
+                    FalseEdges.append(Edges[r])
+                    break
+        LEN = len(FalseEdges)
+        Un = [7.5637594511304131, 102.67438295699854, 79.315905006101659, 46.421857578287792, 118.78703086103606, 22.40274414424832, 47.604230914175822, 38.798056549612745, 111.35159383224551, 97.358301122423441, 59.560832819576675, 70.12015449063739, 68.203814316100278, 55.834072000501841, 6.3919404548287915, 57.849204806936193, 54.384594867106649, 38.002221692334032, 1.0404954730381339, 102.59415392424606, 96.517499470506593, 39.947461228162595, 133.71018943218627, 119.34190384124277, 17.488643832003252, 95.719374888072494, 47.008831723651525, 50.605059476288758, 53.786331610260305, 38.619159774746251, 66.965798111245064, 108.2226772354402, 24.773869302971349, 17.297110382188137, 70.012418813352568, 80.865080957945125, 134.69486564045127, 4.9693056344297624, 47.711903204878013, 111.5745172935153, 123.85341898357802, 2.598111218191701, 66.16747680981247, 75.793806567224919, 54.493046285226086, 5.134811124403269, 95.345711569093808, 52.448276792365377, 6.3991643708610537, 15.0594320384676, 28.083400941618077, 114.11313901121858, 25.174105960013982, 59.462431100066908, 120.67999424170834, 79.733625487460372, 35.404913525151514, 40.15764118296056, 8.1472612899200509, 87.759416363665025, 33.717464624710651, 47.842855376241772, 129.62315998566115, 63.564142623139304, 41.828559091394375, 128.92304565959083, 124.55773894972047, 125.79834336166266, 97.086239949374288, 33.683146688829446, 49.77328268041898, 6.1289956160390471, 16.107156922808414, 59.624198568928321, 117.11556120474395, 133.63731937964337, 35.359129944317495, 114.29843758586455, 23.084968285672588, 56.257957565996293, 11.301124077871719, 41.168713330876123, 36.327997609440743, 126.04538655242787, 127.17945780713571, 3.3450649449836027, 85.014041726889047, 11.534476187802646, 25.196585508993422, 106.82787953487012, 89.574179389371878, 125.00536117771159, 102.61431853921145, 47.463372537118417, 21.958607989872796, 91.989183471109968, 133.36230458958971, 54.336845187065897, 2.2910734533114008, 27.02880072219812, 33.163502259038935, 111.76033182424172, 25.813519941005982, 40.210370129279511, 120.15783410748229, 35.113121494116264, 24.561885501030421, 105.77349805887735, 73.040730804194837, 16.085557671251664, 67.893248093382027, 130.16223557380917, 119.47069673257474, 22.340569188529347, 50.237455781397905, 48.704271638630658, 87.00635632768855, 103.03870800608934, 75.730066192564493, 41.531941967112211, 4.6794271983747056, 61.85888110990831, 86.645530471328328, 27.043596291259114, 65.52963320649458, 117.18746552235379, 103.03873489464556, 49.889076044941241, 73.769555021621684, 19.789222599568891, 86.830668450031482, 8.639268977949877, 34.755670341640339, 79.774557619660158, 4.6987274676105555]
+
+else:
+    FalseEdges = np.random.choice(Edges, 135, replace=False)
+    #print()
+    LEN = len(FalseEdges)
+    Un = np.random.uniform(1, 135, LEN)
+    SeedN = 0
+    # print()
+    # print(Un)
+def change_world():
+    W = []  # чиним начальный список
+    for r in range(10):
+        W.append([])
+        for c in range(10):
+            W[r].append(perm)
+    for r in range(10):
+        W[r][0] = W[r][0].replace('l', '_')
+    for r in range(10):
+        W[0][r] = W[0][r].replace('u', '_')
+    for r in range(10):
+        W[r][9] = W[r][9].replace('r', '_')
+    for r in range(10):
+        W[9][r] = W[9][r].replace('d', '_')
+
+    removed = 0
+    for r in range(LEN):
+        Chance = np.random.randint(1, 135)
+        if Un[r] < Chance:
+            FalseEdges[r].delete_edge(W)
+            removed += 1
+
+    print("WORLD IS :")
+    print()
+    for r in W:
+        print(r)
+    print()
+    print(180 - removed, " edges remain")
+    print("EDGES REMAIN:", len(CurrEdges))
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    print()
+    return W
+# for r in B:
+#     print(r)
+
+
+
+def avaliable(point):
+    avaliable = []
+    visited = []
+    n = []
+    pointer = point
+    avaliable.append(pointer)
+    visited.append(pointer)
+    n.append(pointer)
+
+    list1 = []
+    list2 = []
+
+    tn =[]
+
+    #flag = 1
+    while n != []:
+        #flag = 0
+        for i in range(len(n)):
+            if visited.count(n[i]) == 0:
+                visited.append(n[i])
+        tn = n[:]
+        n = []
+        for i in range(len(CurrEdges)):
+            list1.append(CurrEdges[i].fr)
+            list2.append(CurrEdges[i].to)
+
+        #print(list1)
+        #print(list2)
+        #print(visited)
+
+        for r in range(len(tn)):
+            #print(n[r])
+            for i in range(len(CurrEdges)):
+                if CurrEdges[i].fr == tn[r] and visited.count(CurrEdges[i].to) == 0:
+                    #print("HA", CurrEdges[i].fr)
+                    n.append(CurrEdges[i].to)
+                    #flag = 1
+                elif CurrEdges[i].to == tn[r] and visited.count(CurrEdges[i].fr) == 0:
+                    #print("HE", CurrEdges[i].to)
+                    n.append(CurrEdges[i].fr)
+                    #flag = 1
+
+    return visited
+
+CurrEdges = Edges[:]
+WORLD = change_world()
+targets = avaliable(pointer)
+
+print("TARGET LIST IS", targets)
+print("TAGGET LIST LEN IS",len(targets))
+
+
+print("EDGES REMAIN:", len(CurrEdges))
+#Начало тестов
+TriesLog = []
+StepsLog = []
+HopsLog = []
+print("NET SIZE IS ", len(net))
+print()
+NET = net
+
+
+print()
+print("NET SIZE IS NOW",len(net),"OF 361")
+Amount = int(input("HOW MANY TESTS?"))
+StochType = str(input("CHOOSE STOCHASTIC TYPE g (for goal-oriented) / a (for action-oriented)?"))
+TarType = str(input("CHOOSE TARGETS TYPE: any. p2p, tlist"))
+if TarType not in ['any','p2p','tlist']:
+    while TarType not in ['any','p2p','tlist']:
+        TarType = str(input("CHOOSE ONLY FROM(!!!) TARGETS TYPE: any. p2p, tlist"))
+if TarType == 'tlist':
+    PreSetOrNot = input("CHOOSE TLIST MANUALY OR USE PreSET man/set?")
+    if PreSetOrNot == 'man':
+        tlist = []
+        tar = 1
+        while tar > 0:
+            tar = int(input("ADD TARGET, 0 for list end"))
+            if tar == 0:
+                print("YOUR TLIST IS",tlist)
+                break
+            else:
+                tlist.append(tar)
+    elif PreSetOrNot == 'set':
+        tlist = unlock
+        print("YOUR TLIST IS", unlock)
+AMOUNT =[]
+STOCH = []
+Stoch = int(input("STOCHASTIC PARAMETER?"))
+STOCH.append(Stoch)
+AMOUNT.append(Amount)
+#Amount = 100
+print()
+#while Tests < Amount:  # Все остальные разы
+TrueAmount = -1
+StepAm = Amount
+CHANGE = 0
+omg = 1
+#pointer = 11
+while True:
+
+    CHANGE += 1
+
+    if Tests > Amount:
+        Tests = 0
+        print()
+        Ans = input("WANT SOME MORE?")
+        print()
+        if Ans == 'y':
+            Amount = int(input("HOW MANY?"))
+            Stoch = int(input("WHAT IS NEW STOCHASTIC PARAMETER?"))
+            AMOUNT.append(Amount)
+            STOCH.append(Stoch)
+            StepAm += Amount
+            TrueAmount -= 1
+            Step -=1
+        else:
+            break
+
+    print("---------------------------------------------------------")
+    if StochType == 'g':
+        if CHANGE % Stoch == 0:
+            CurrEdges = Edges[:]
+            WORLD = change_world()
+    # else:
+    #     CurrEdges = Edges[:]
+    #     WORLD = change_world()
+
+    TrueAmount += 1
+    tr = 0
+    I = 1
+    m = 0
+    X=WORLD
+    #X=B
+    #nmotiv = motivation()# Выбирать цели вручную
+    GoalArray = []
+    if StochType == 'g':
+        if TarType == 'any':
+            targets = avaliable(pointer)
+            nmotivS = rnd.choice(targets)
+        elif TarType == 'p2p':
+            pointer = 22
+            targets = avaliable(pointer)
+            if 77 in targets:
+                nmotivS = 77
+            else:
+                print("TARGET IS NOT AVAILABLE, STAYING AT HOME")
+                nmotivS = 22
+        elif TarType == 'tlist':
+            targets = avaliable(pointer)
+            flag = 0
+            while flag == 0:
+                nmotivS = rnd.choice(tlist)
+                if nmotivS in targets:
+                    flag = 1
+    elif StochType == 'a':
+        if TarType == 'any':
+            nmotivX = rnd.choice(A)
+            nmotivS = rnd.choice(nmotivX)
+        elif TarType == 'p2p':
+            pointer = 22
+            nmotivS = 77
+        elif TarType == 'tlist':
+            nmotivS = rnd.choice(tlist)
+
+    #pointer = 22
+    #nmotivS = 77
+    #nmotivS = rnd.choice(unlock)
+
+
+    nmotiv = current_coords(nmotivS)
+
+    Coords = current_coords(pointer)
+    current = get_stance(Coords(0), Coords(1))
+    goal = get_stance(nmotiv(0), nmotiv(1))
+
+    print()
+    #print("---------------------------------------------------------")
+    print("STEP", Step,"OF ",StepAm)
+    Step+=1
+    #for r in A:
+       # print(r)
+    #print()
+    #for r in X:
+        #print(r)
+    print()
+    print("NOW AT",current)
+    print("NEW GOAL IS",goal)
+    print("NEW GOAL COORDS ARE",nmotiv(0), ',', nmotiv(1))
+    print()
+
+    #if current == goal:
+        #while current == goal:
+           # print("Chose another")
+           # nmotiv = motivation()
+           # goal = get_stance(nmotiv(0), nmotiv(1))
+
+    k = len(net)  # длина списка сети
+    j = 0  # есть ли цель в списке
+    gp = pointer
+    for i in range(k):
+        if net[i].new_stance == goal:
+            j = 1
+    if j == 1:
+        wrong_ones = [Secondary(0,0,0)]
+        TPath = []
+        Path = search(goal, current, k, wrong_ones) # ищем маршрут
+        Norm = count_hops(goal, current)
+        print("FOUND PATH TO",goal,"FROM",Path[0], Path)
+        length = len(Path)
+        print("PATH length is",length)
+        print()
+        # while gp != goal:
+        tried = 0
+        hops = 0
+        demotiv = 1
+        while tried < 2000:
+            if len(Path) == 0:
+                wrong_ones = [Secondary(0, 0, 0)]
+                Path.append(gp)
+                #break
+            tried+=1
+            TPath.append(Path)
+            tgp = go_path(Path, goal, k, X, StochType, Stoch, allsteps)
+            gp = tgp[0]
+            hops += tgp[2]
+            allsteps = tgp[3]
+            demotiv += 1
+            if gp == goal:
+                print("GOAL REACHED FCK YEAH!!!")
+                print("I TRIED ", tried," TIMES")
+                TriesLog.append(tried)
+                StepsLog.append(hops+1)
+                HopsLog.append(Norm)
+                print("REAL PATH WAS")
+                print(TPath)
+                break
+            else:
+                wrong_ones.append(tgp[1])
+                #wrong_ones[0] = tgp[1]
+                print("PATH COLLAPSED AT", gp)
+                print("I TRIED ", tried, " TIMES")
+                #print("WRONG ONES ARE")
+                # for r in range(len(wrong_ones)):
+                #     print(wrong_ones[r].name)
+                Path = search(goal, gp, k, wrong_ones)
+                print("NEW PATH IS")
+                print(Path)
+                print("NET SIZE IS ", len(net))
+
+        if gp != goal:
+            pointer = gp
+            h = 0
+            timeout = 0
+            while True:  # Первый раз
+                # pointer - stance, Coords - coords
+                if StochType == 'a':
+                    if timeout % Stoch == 0:
+                        CurrEdges = Edges[:]
+                        WORLD = change_world()
+                if timeout > 1000:
+                    print("GOAL", nmotivS, "SEEMS TO BE UNREACHABLE")
+                    print("GETTING NEW GOAL FROM", pointer)
+                    TriesLog.append('FAIL')
+                    StepsLog.append('FAIL')
+                    HopsLog.append(Norm)
+                    break
+                Coords = current_coords(pointer)
+                if get_stance(Coords(0), Coords(1)) == get_stance(nmotiv(0), nmotiv(1)):
+                    print("GOAL", nmotivS,"REACHED by random, not PATH")
+                    pointer = get_stance(nmotiv(0), nmotiv(1))
+                    print(h)
+                    print()
+                    break
+
+                n = rnd.randint(1, 4)
+                #print()
+                #print(n)
+                #print()
+
+                if n == 1 and "r" in X[Coords(0)][Coords(1)]:
+                    ex = pointer
+                    #print(B[Coords(0)][Coords(1)])
+                    pointer = move_right(pointer)
+                    #print("turned RIGHT")
+                    # print(pointer)
+                    t = current_coords(pointer)
+                    #print("current coords", t(0), t(1))
+                    x = Secondary(ex, pointer, 1)
+                    #C.append(x.name)
+                    # print(x.how)
+                    #y = Secondary(pointer, ex, 2)
+                    #C.append(y.name)
+                    if C.count(x.name) == 1:
+                        net.append(Secondary(ex, pointer, 1))  # туда
+                        C.remove(x.name)
+                    if C.count(x.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == x.name:
+                                net[r].t +=1
+                    if C.count(y.name) == 1:
+                        net.append(Secondary(pointer, ex, 2))  # обратно
+                        C.remove(y.name)
+                    if C.count(y.name) ==0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == y.name:
+                                net[r].t += 1
+                elif n == 2 and "l" in X[Coords(0)][Coords(1)]:
+                    ex = pointer
+                    #print(B[Coords(0)][Coords(1)])
+                    pointer = move_left(pointer)
+                    #print("turned LEFT")
+                    # print(pointer)
+                    t = current_coords(pointer)
+                    #print("current coords", t(0), t(1))
+                    x = Secondary(ex, pointer, 2)
+                    #C.append(x.name)
+                    # print(x.how)
+                    y = Secondary(pointer, ex, 1)
+                    #C.append(y.name)
+                    # print(C)
+                    if C.count(x.name) == 1:
+                        net.append(Secondary(ex, pointer, 2))
+                        C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                    if C.count(x.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == x.name:
+                                net[r].t += 1
+                    if C.count(y.name) == 1:
+                        net.append(Secondary(pointer, ex, 1))
+                        C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                    if C.count(y.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == y.name:
+                                net[r].t += 1
+                elif n == 3 and "d" in X[Coords(0)][Coords(1)]:
+                    ex = pointer
+                    #print(B[Coords(0)][Coords(1)])
+                    pointer = move_down(pointer)
+                    #print("turned DOWN")
+                    # print(pointer)
+                    t = current_coords(pointer)
+                    #print("current coords", t(0), t(1))
+                    x = Secondary(ex, pointer, 3)
+                    #C.append(x.name)
+                    # print(x.how)
+                    y = Secondary(pointer, ex, 4)
+                    #C.append(y.name)
+                    if C.count(x.name) == 1:
+                        net.append(Secondary(ex, pointer, 3))
+                        C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                    if C.count(x.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == x.name:
+                                net[r].t += 1
+                    if C.count(y.name) == 1:
+                        net.append(Secondary(pointer, ex, 4))
+                        C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                    if C.count(y.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == y.name:
+                                net[r].t += 1
+                elif n == 4 and "u" in X[Coords(0)][Coords(1)]:
+                    ex = pointer
+                    #print(B[Coords(0)][Coords(1)])
+                    pointer = move_up(pointer)
+                    #print("turned UP")
+                    # print(pointer)
+                    t = current_coords(pointer)
+                    #print("current coords", t(0), t(1))
+                    x = Secondary(ex, pointer, 4)
+                    #C.append(x.name)
+                    # print(x.how)
+                    y = Secondary(pointer, ex, 3)
+                    #C.append(y.name)
+                    if C.count(x.name) == 1:
+                        net.append(Secondary(ex, pointer, 4))
+                        C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                    if C.count(x.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == x.name:
+                                net[r].t += 1
+                    if C.count(y.name) == 1:
+                        net.append(Secondary(pointer, ex, 3))
+                        C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                    if C.count(y.name) == 0:
+                        NET = len(net)
+                        for r in range(NET):
+                            if net[r].name == y.name:
+                                net[r].t += 1
+                # else:
+                #     ex = pointer
+                #     # print(B[Coords(0)][Coords(1)])
+                #     Ppointer = pointer
+                #
+                #     Ppointer = move_n(n, Ppointer)
+                #     # print("NOT TURNED!!")
+                #     # print(pointer)
+                #     t = current_coords(pointer)
+                #     # print("current coords", t(0), t(1))
+                #     x = Secondary(ex, Ppointer, n)
+                #     #C.append(x.name)
+                #     # print(x.how)
+                #     if C.count(x.name) == 1:
+                #         net.append(Secondary(ex, pointer, n))
+                #         C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                #         k = len(net)
+                #         net[k - 1].f += 1
+                #     if C.count(x.name) == 0:
+                #         NET = len(net)
+                #         for r in range(NET):
+                #             if net[r].name == x.name:
+                #                 net[r].f += 1
+                h += 1
+                timeout+=1
+
+            g = len(net)
+            print()
+            # for i in range(g):
+            # print(net[i].name)
+            print(h)
+            print()
+            NET = len(net)
+            #for r in range(NET):  # проверка изменений в счетчике уверенности
+                #if (net[r].f > 1):
+                    #print("Bad", net[r].name)
+                    # print(net[r].t/(net[r].t+net[r].f))
+                    #a = net[r].sure()
+                    #print(a)
+            #print()
+            # for r in range(NET):  # проверка изменений в счетчике уверенности
+            # if (net[r].ex_stance == net[r]new_stance):
+            # print("Bad", net[r].name)
+            # print(net[r].t/(net[r].t+net[r].f))
+            print()
+            print("Goal reached not by PATH")
+            print(Path)
+
+
+        else:
+            pointer = get_stance(nmotiv(0), nmotiv(1))
+            print(h)
+            print()
+            NET = len(net)
+            #for r in range(NET):  # проверка изменений в счетчике уверенности
+                #if (net[r].t > 1):
+                    #print("Good", net[r].name)
+                    # print(net[r].t)
+            print("GOAL", nmotivS, "REACHED BY PATH","FROM", Path[0])
+            print(Path)
+            print("PATH length is", len(Path))
+            Success+=1
+
+
+
+    if j == 0:
+
+        Norm = count_hops(goal, current)
+        #print("HAHAHAHAHAHA1")
+        timeout = 1
+        #print("HAHAHAHAHAHA2")
+        #print('timeout', timeout)
+        while True:
+            #print("HEHEHEHEHEHE")
+            if StochType == 'a':
+                if timeout % Stoch == 0:
+                    CurrEdges = Edges[:]
+                    WORLD = change_world()
+            if timeout>1000:
+                print("GOAL",nmotivS,"SEEMS TO BE UNREACHABLE")
+                print("GETTING NEW GOAL FROM", pointer)
+                StepsLog.append(timeout)
+                HopsLog.append(Norm)
+                TriesLog.append(1000)
+                break
+            # pointer - stance, Coords - coords
+            Coords = current_coords(pointer)
+            if get_stance(Coords(0), Coords(1)) == get_stance(nmotiv(0), nmotiv(1)):
+                print("GOAL", nmotivS, "REACHED by random, didn't know GOAL")
+                print("Way length is", h)
+                pointer = get_stance(nmotiv(0), nmotiv(1))
+                StepsLog.append(timeout)
+                HopsLog.append(Norm)
+                TriesLog.append(1000)
+                break
+
+            n = rnd.randint(1, 4)
+            #print()
+            #print(n)
+            #print()
+            if n == 1 and "r" in X[Coords(0)][Coords(1)]:
+                ex = pointer
+                #print(B[Coords(0)][Coords(1)])
+                pointer = move_right(pointer)
+                #print("turned RIGHT")
+                #print(pointer)
+                t = current_coords(pointer)
+                #print("current coords", t(0), t(1))
+                x = Secondary(ex, pointer, 1)
+                #C.append(x.name)
+                # print(x.how)
+                y = Secondary(pointer, ex, 2)
+                #C.append(y.name)
+                if C.count(x.name) == 1:
+                    net.append(Secondary(ex, pointer, 1))  # туда
+                    C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(x.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == x.name:
+                            net[r].t += 1
+                if C.count(y.name) == 1:
+                    net.append(Secondary(pointer, ex, 2))  # обратно
+                    C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(y.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == y.name:
+                            net[r].t += 1
+            elif n == 2 and "l" in X[Coords(0)][Coords(1)]:
+                ex = pointer
+                #print(B[Coords(0)][Coords(1)])
+                pointer = move_left(pointer)
+                #print("turned LEFT")
+                #print(pointer)
+                t = current_coords(pointer)
+                #print("current coords", t(0), t(1))
+                x = Secondary(ex, pointer, 2)
+                #C.append(x.name)
+                # print(x.how)
+                y = Secondary(pointer, ex, 1)
+                #C.append(y.name)
+                # print(C)
+                if C.count(x.name) == 1:
+                    net.append(Secondary(ex, pointer, 2))
+                    C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(x.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == x.name:
+                            net[r].t += 1
+                if C.count(y.name) == 1:
+                    net.append(Secondary(pointer, ex, 1))
+                    C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(y.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == y.name:
+                            net[r].t += 1
+            elif n == 3 and "d" in X[Coords(0)][Coords(1)]:
+                ex = pointer
+                #print(B[Coords(0)][Coords(1)])
+                pointer = move_down(pointer)
+                #print("turned DOWN")
+                #print(pointer)
+                t = current_coords(pointer)
+                #print("current coords", t(0), t(1))
+                x = Secondary(ex, pointer, 3)
+                #C.append(x.name)
+                # print(x.how)
+                y = Secondary(pointer, ex, 4)
+                #C.append(y.name)
+                if C.count(x.name) == 1:
+                    net.append(Secondary(ex, pointer, 3))
+                    C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(x.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == x.name:
+                            net[r].t += 1
+                if C.count(y.name) == 1:
+                    net.append(Secondary(pointer, ex, 4))
+                    C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(y.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == y.name:
+                            net[r].t += 1
+            elif n == 4 and "u" in X[Coords(0)][Coords(1)]:
+                ex = pointer
+                #print(B[Coords(0)][Coords(1)])
+                pointer = move_up(pointer)
+                #print("turned UP")
+                #print(pointer)
+                t = current_coords(pointer)
+                #print("current coords", t(0), t(1))
+                x = Secondary(ex, pointer, 4)
+                #C.append(x.name)
+                # print(x.how)
+                y = Secondary(pointer, ex, 3)
+                #C.append(y.name)
+                if C.count(x.name) == 1:
+                    net.append(Secondary(ex, pointer, 4))
+                    C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(x.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == x.name:
+                            net[r].t += 1
+                if C.count(y.name) == 1:
+                    net.append(Secondary(pointer, ex, 3))
+                    C.remove(y.name)  # НОВОЕ ОСТОРОЖНО
+                if C.count(y.name) == 0:
+                    NET = len(net)
+                    for r in range(NET):
+                        if net[r].name == y.name:
+                            net[r].t += 1
+            # else:
+            #     ex = pointer
+            #     # print(B[Coords(0)][Coords(1)])
+            #     Ppointer = pointer
+            #     Ppointer = move_n(n, Ppointer)
+            #     # print("NOT TURNED!!")
+            #     # print(pointer)
+            #     t = current_coords(pointer)
+            #     # print("current coords", t(0), t(1))
+            #     x = Secondary(ex, Ppointer, n)
+            #     x.f += 1
+            #     #C.append(x.name)
+            #     # print(x.how)
+            #     if C.count(x.name) == 1:
+            #         net.append(Secondary(ex, pointer, n))
+            #         C.remove(x.name)  # НОВОЕ ОСТОРОЖНО
+            #         k = len(net)
+            #         net[k - 1].f += 1
+            #     if C.count(x.name) == 0:
+            #         NET = len(net)
+            #         for r in range(NET):
+            #             if net[r].name == y.name:
+            #                 net[r].f += 1
+            m += 1
+            timeout+=1
+        #BIG = len(net)
+        #for i in range(BIG):
+            #print(net[i].name)
+        #print(m)
+    I += 1
+    Tests +=1
+
+    print("SUCCESS RATE IS", Success,"OF ", TrueAmount+1)
+
+for r in WORLD:
+    print(r)
+k = len(net)
+for r in range(k):
+    print(net[r].name, " RATE IS ", net[r].sure())
+
+# for r in TriesLog:
+#     print(r)
+print("THIS IS TRIESLOG")
+print(TriesLog)
+print("THIS IS STEPSLOG")
+print(StepsLog)
+print("THIS IS HOPSLOG")
+print(HopsLog)
+NormedStepsLog = []
+print("fixed tries")
+for i in range(len(TriesLog)):
+    if TriesLog[i] == 'FAIL':
+        TriesLog[i] = 0
+print(TriesLog)
+print("fixed steps")
+for i in range(len(StepsLog)):
+    if StepsLog[i] == 'FAIL':
+        StepsLog[i] = 0
+print(StepsLog)
+
+for r in range(len(StepsLog)):
+    NormedStepsLog.append(StepsLog[r]/HopsLog[r])
+
+print("THIS IS NORMEDSTEPSLOG")
+print(NormedStepsLog)
+print()
+print("HERE ARE EXPERIMENT PARAMETERS")
+print("Stochastic type is","{",StochType,"}")
+print("Test amounts are", AMOUNT)
+print("Stochastic parameters are ", STOCH)
+print("Targets type is","{",TarType,"}")
+print("This is seed number","{",SeedN,"}")
+if TarType == 'tlist':
+    print("Targets list is", tlist)
+print("Tests amount is ", len(TriesLog))
+print("Tests amount is ", len(StepsLog))
+print("Tests amount is ", len(HopsLog))
+print("Learning type is", Learning)
+axX = []
+for i in range(len(TriesLog)):
+    axX.append(i+1)
+
+line1 = plt.plot(range(1, len(TriesLog) + 1), TriesLog, 'r:', label = 'Построения маршрута')
+plt.show()
+line2 = plt.plot(axX, NormedStepsLog, 'r:', label = 'Шаги')
+plt.show()
+print("THIS IS ALLSTEPS DONE", allsteps)
+time3 = time.time()
+print('Time spent', int((time3 - time1)/60), 'min')
+k = input("FINISH NOW?")
